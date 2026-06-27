@@ -10,5 +10,5 @@
 # Description: OpenWrt DIY script part 1 (Before Update feeds)
 #
 
-# 安全注入 DAED 第三方高性能代理软件源，规避 Git 冲突
-echo 'src-git daeuniverse https://github.com/daeuniverse/openwrt-packages.git;main' >> feeds.conf.default
+# 使用 src-git-full 确保完整克隆 daeuniverse feed
+echo 'src-git-full daeuniverse https://github.com/daeuniverse/openwrt-packages.git;main' >> feeds.conf.default

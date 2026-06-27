@@ -1,7 +1,7 @@
 #
 # https://github.com/P3TERX/Actions-OpenWrt
 #
-# File: .github/workflows/openwrt-bulder.yml
+# File: .github/workflows/openwrt-builder.yml
 # Description: Build OpenWrt using GitHub Actions
 #
 # Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
@@ -49,6 +49,10 @@ jobs:
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
+        
+        # 👑 终极降维打击：在最源头创建软链接，拦截所有往系统根目录强写 /swapfile 的越权报错行为
+        sudo ln -sf /workdir/swapfile /swapfile 2>/dev/null || true
+        sudo touch /workdir/swapfile && sudo chmod 777 /workdir/swapfile
 
     - name: Clone source code
       working-directory: /workdir
@@ -131,7 +135,6 @@ jobs:
       run: |
         echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
         touch release.txt
-        [ ${UPLOAD_GOFILE} = true && ${{ steps.gofile.outputs.url }} ] && echo "🔗 [GoFile](${{ steps.gofile.outputs.url }})" >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: Upload firmware to release

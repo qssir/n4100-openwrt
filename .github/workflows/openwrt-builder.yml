@@ -33,22 +33,31 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+    - name: Free disk space and setup swap
+      run: |
+        # 清理系统默认 swap（新版 runner 对 /swapfile 权限收紧）
+        sudo swapoff /swapfile 2>/dev/null || true
+        sudo rm -f /swapfile 2>/dev/null || true
+        
+        # 在 /mnt 重建 swap（该目录有写权限）
+        sudo mkdir -p /mnt/swap
+        sudo fallocate -l 10G /mnt/swapfile || sudo dd if=/dev/zero of=/mnt/swapfile bs=1M count=10240
+        sudo chmod 600 /mnt/swapfile
+        sudo mkswap /mnt/swapfile
+        sudo swapon /mnt/swapfile
+        sudo swapon --show
+        
+        # 清理空间
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        sudo docker image prune --all --force 2>/dev/null || true
+
     - name: Checkout
-      uses: actions/checkout@main
+      uses: actions/checkout@v4
 
     - name: Initialization environment
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
-        # 👑 动态热补丁：重定向、伪造并拦截后续一切向系统根目录写入 /swapfile 的越权行为
-        sudo mkdir -p /workdir/swapfile_mock
-        sudo chmod 777 /workdir/swapfile_mock
-        
-        # 动态欺骗：将后面潜在的 fallocate 或 dd 命令针对 /swapfile 的操作强制重定向
-        sudo set -x
-        
-        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-        sudo docker image prune --all --force
         sudo -E apt-get -qq update
         sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
         sudo -E apt-get -qq autoremove --purge
@@ -61,10 +70,6 @@ jobs:
       working-directory: /workdir
       run: |
         df -hT $PWD
-        
-        # 👑 源码层深度补丁：进入源码或依赖目录，全局擦除任何试图向根目录创建 swapfile 的违规 Makefile/Shell 代码
-        find . -type f -name "*.sh" -o -name "Makefile" -o -name "*.py" 2>/dev/null | xargs sed -i 's/\/swapfile/\/workdir\/swapfile_mock\/swapfile/g' 2>/dev/null || true
-        
         git clone $REPO_URL -b $REPO_BRANCH openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
@@ -74,14 +79,9 @@ jobs:
         chmod +x $DIY_P1_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P1_SH
-        
-        # 👑 插件层深度补丁：全盘扫描拉取下来的 Feeds 目录，强制将所有外部插件对根目录 /swapfile 的引用重定向到安全目录
-        find . -type f -name "*.sh" -o -name "Makefile" 2>/dev/null | xargs sed -i 's/\/swapfile/\/workdir\/swapfile_mock\/swapfile/g' 2>/dev/null || true
 
     - name: Update feeds
-      run: |
-        cd openwrt && ./scripts/feeds update -a
-        find . -type f -name "*.sh" -o -name "Makefile" 2>/dev/null | xargs sed -i 's/\/swapfile/\/workdir\/swapfile_mock\/swapfile/g' 2>/dev/null || true
+      run: cd openwrt && ./scripts/feeds update -a
 
     - name: Install feeds
       run: cd openwrt && ./scripts/feeds install -a
@@ -119,7 +119,7 @@ jobs:
       run: df -hT
 
     - name: Upload bin directory
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v4
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
       with:
         name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
@@ -135,7 +135,7 @@ jobs:
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: Upload firmware directory
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v4
       if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
         name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
@@ -150,7 +150,7 @@ jobs:
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: Upload firmware to release
-      uses: softprops/action-gh-release@master
+      uses: softprops/action-gh-release@v2
       if: steps.tag.outputs.status == 'success' && !cancelled()
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -160,13 +160,13 @@ jobs:
         files: ${{ env.FIRMWARE }}/*
 
     - name: Delete workflow runs
-      uses: Mattraks/delete-workflow-runs@main
+      uses: Mattraks/delete-workflow-runs@v2
       with:
         retain_days: 0
         keep_minimum_runs: 2
 
     - name: Remove old Releases
-      uses: dev-drprasad/delete-older-releases@master
+      uses: dev-drprasad/delete-older-releases@v0.3.4
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       with:
         keep_latest: 3

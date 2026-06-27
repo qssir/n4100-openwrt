@@ -10,5 +10,6 @@
 # Description: OpenWrt DIY script part 1 (Before Update feeds)
 #
 
-# 使用 src-git-full 确保完整克隆 daeuniverse feed
-echo 'src-git-full daeuniverse https://github.com/daeuniverse/openwrt-packages.git;main' >> feeds.conf.default
+# daeuniverse/openwrt-packages 仓库已不存在（404），删除此 feed
+# 如需 daed 软件，请寻找替代 feed 源
+# echo 'src-git-full daeuniverse https://github.com/daeuniverse/openwrt-packages.git;main' >> feeds.conf.default

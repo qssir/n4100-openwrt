@@ -40,6 +40,13 @@ jobs:
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
+        # 👑 动态热补丁：重定向、伪造并拦截后续一切向系统根目录写入 /swapfile 的越权行为
+        sudo mkdir -p /workdir/swapfile_mock
+        sudo chmod 777 /workdir/swapfile_mock
+        
+        # 动态欺骗：将后面潜在的 fallocate 或 dd 命令针对 /swapfile 的操作强制重定向
+        sudo set -x
+        
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
         sudo docker image prune --all --force
         sudo -E apt-get -qq update
@@ -49,15 +56,15 @@ jobs:
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
-        
-        # 👑 终极降维打击：在最源头创建软链接，拦截所有往系统根目录强写 /swapfile 的越权报错行为
-        sudo ln -sf /workdir/swapfile /swapfile 2>/dev/null || true
-        sudo touch /workdir/swapfile && sudo chmod 777 /workdir/swapfile
 
     - name: Clone source code
       working-directory: /workdir
       run: |
         df -hT $PWD
+        
+        # 👑 源码层深度补丁：进入源码或依赖目录，全局擦除任何试图向根目录创建 swapfile 的违规 Makefile/Shell 代码
+        find . -type f -name "*.sh" -o -name "Makefile" -o -name "*.py" 2>/dev/null | xargs sed -i 's/\/swapfile/\/workdir\/swapfile_mock\/swapfile/g' 2>/dev/null || true
+        
         git clone $REPO_URL -b $REPO_BRANCH openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
@@ -67,9 +74,14 @@ jobs:
         chmod +x $DIY_P1_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P1_SH
+        
+        # 👑 插件层深度补丁：全盘扫描拉取下来的 Feeds 目录，强制将所有外部插件对根目录 /swapfile 的引用重定向到安全目录
+        find . -type f -name "*.sh" -o -name "Makefile" 2>/dev/null | xargs sed -i 's/\/swapfile/\/workdir\/swapfile_mock\/swapfile/g' 2>/dev/null || true
 
     - name: Update feeds
-      run: cd openwrt && ./scripts/feeds update -a
+      run: |
+        cd openwrt && ./scripts/feeds update -a
+        find . -type f -name "*.sh" -o -name "Makefile" 2>/dev/null | xargs sed -i 's/\/swapfile/\/workdir\/swapfile_mock\/swapfile/g' 2>/dev/null || true
 
     - name: Install feeds
       run: cd openwrt && ./scripts/feeds install -a

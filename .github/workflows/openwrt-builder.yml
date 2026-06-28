@@ -2,7 +2,7 @@
 # https://github.com/P3TERX/Actions-OpenWrt
 #
 # File: .github/workflows/openwrt-builder.yml
-# Description: Build OpenWrt using GitHub Actions
+# Description: Build OpenWrt using GitHub Actions with Auto-Update Trigger
 #
 # Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
 #
@@ -15,10 +15,16 @@ name: OpenWrt Builder
 on:
   repository_dispatch:
   workflow_dispatch:
+  # 👑 自动化追新机制 1：定时轮询（设定为北京时间每周五凌晨 04:00 自动检查上游并触发编译）
+  schedule:
+    - cron: '0 20 * * 4'
+  # 👑 自动化追新机制 2：点击自己仓库的 Star 也能强行触发编译
+  watch:
+    types: [started]
 
 env:
-  REPO_URL: https://github.com/coolsnowwolf/lede
-  REPO_BRANCH: master
+  REPO_URL: https://github.com/immortalwrt/immortalwrt
+  REPO_BRANCH: openwrt-24.10
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
   DIY_P1_SH: diy-part1.sh
@@ -40,16 +46,13 @@ jobs:
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
-        # 👑 动态热补丁：重定向并伪造内核层越权的 /swapfile 行为
         sudo mkdir -p /workdir/swapfile_mock
         sudo chmod 777 /workdir/swapfile_mock
-        
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
         sudo docker image prune --all --force
         sudo -E apt-get -qq update
         sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp ninja-build p7zip p7zip-full patch pkgconf python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
         
-        # 👑 突破工具链锁：卸载旧版 CMake，用官方标准二进制包秒级热升级至最新的 3.31+ 核心编译器
         sudo apt-get remove --purge -y cmake || true
         wget -qO- https://github.com/Kitware/CMake/releases/download/v3.31.5/cmake-3.31.5-linux-x86_64.tar.gz | sudo tar --strip-components=1 -xzC /usr/local
         cmake --version

@@ -121,20 +121,21 @@ jobs:
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
       with:
         name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: openwrt/bin
+        path: /workdir/openwrt/bin
 
     - name: Organize files
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
-        # 👑 黄金无损修复：回归标准 Shell 通配符展开逻辑，直接通过 cd 切换进原生相对路径
-        cd openwrt/bin/targets/*/*
+        # 👑 绝对路径穿透：先进入绝对物理源码存放目录，再执行通配符展开，彻底击碎软链接死锁
+        cd /workdir/openwrt
+        cd bin/targets/*/*
         
         # 安全清理包与残留文件
         rm -rf packages
         rm -rf *swapfile* || true
         
-        # 捕获当前真正展开后的物理绝对路径并安全注入环境变量
+        # 捕获当前真正展开后的绝对路径并安全注入环境变量
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 

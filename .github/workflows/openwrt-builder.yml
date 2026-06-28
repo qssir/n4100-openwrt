@@ -17,8 +17,8 @@ on:
   workflow_dispatch:
 
 env:
-  REPO_URL: https://github.com/coolsnowwolf/lede
-  REPO_BRANCH: master
+  REPO_URL: https://github.com/immortalwrt/immortalwrt
+  REPO_BRANCH: openwrt-24.10
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
   DIY_P1_SH: diy-part1.sh
@@ -116,7 +116,6 @@ jobs:
         nproc
         echo "=== Starting compile with $(nproc) threads ==="
         make -j$(nproc) || { echo "=== Parallel compile failed, retrying with single thread ==="; make -j1; } || { echo "=== Single thread failed, verbose mode ==="; make -j1 V=s; }
-        # 验证编译结果：检查 bin/targets 目录是否存在
         if [ ! -d "bin/targets" ]; then
           echo "ERROR: Compile failed, bin/targets directory not found"
           exit 1

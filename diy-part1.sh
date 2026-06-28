@@ -10,6 +10,5 @@
 # Description: OpenWrt DIY script part 1 (Before Update feeds)
 #
 
-# daeuniverse/openwrt-packages 仓库已不存在（404），删除此 feed
-# 如需 daed 软件，请寻找替代 feed 源
-# echo 'src-git-full daeuniverse https://github.com/daeuniverse/openwrt-packages.git;main' >> feeds.conf.default
+# ImmortalWrt openwrt-24.10 已原生支持 DAED，无需额外添加 feed
+# 如需其他第三方 feed，请在此添加

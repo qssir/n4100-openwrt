@@ -1,39 +1,24 @@
-**English** | [中文](https://p3terx.com/archives/build-openwrt-with-github-actions.html)
+# ImmortalWrt x86_64 专属定制固件 (Intel N4100 高配影音网关版)
 
-# Actions-OpenWrt
+基于最新 **ImmortalWrt openwrt-24.10** 稳定版主线源码编译，专为 **Intel N4100 (8G RAM + 1T SSD)** 及同类型标准 x86_64 软路由设备量身定制。底层要素健全，完美打通异地组网、eBPF 高性能代理及全家桶级局域网高清影音流广播。
 
-[![LICENSE](https://img.shields.io/github/license/mashape/apistatus.svg?style=flat-square&label=LICENSE)](https://github.com/P3TERX/Actions-OpenWrt/blob/master/LICENSE)
-![GitHub Stars](https://img.shields.io/github/stars/P3TERX/Actions-OpenWrt.svg?style=flat-square&label=Stars&logo=github)
-![GitHub Forks](https://img.shields.io/github/forks/P3TERX/Actions-OpenWrt.svg?style=flat-square&label=Forks&logo=github)
+---
 
-A template for building OpenWrt with GitHub Actions
+## 🚀 固件核心亮点与要素
 
-## Usage
+### 🚨 1. 健全的底层网络存储拓扑 (解决 AList 挂载硬伤)
+* **标准 FUSE 支持**：原生编译 `kmod-fuse` 与 `fuse-utils`，支持 AList、rclone 将外部大容量 WebDAV、云盘资源直接挂载为本地物理文件夹。
+* **全格式文件系统**：内置 `ext4`、`vfat`、`ntfs3` 强壮驱动，完美释放 N4100 内部 1T 大硬盘存储潜能。
+* **影音广播全家桶**：开箱即用集成 `Samba4`（带局域网 SMB 广播）、`MiniDLNA`、`filebrowser`（网页文件管理器）与 `diskman`（高级磁盘管理）。
+* **全能下载站**：集成 `qbittorrent`、`transmission`、`aria2` 满足全天候 PT/BT 挂机下载需求。
 
-- Click the [Use this template](https://github.com/P3TERX/Actions-OpenWrt/generate) button to create a new repository.
-- Generate `.config` files using [Lean's OpenWrt](https://github.com/coolsnowwolf/lede) source code. ( You can change it through environment variables in the workflow file. )
-- Push `.config` file to the GitHub repository.
-- Select `Build OpenWrt` on the Actions page.
-- Click the `Run workflow` button.
-- When the build is complete, click the `Artifacts` button in the upper right corner of the Actions page to download the binaries.
+### 🔥 2. 前沿网络代理与策略网关
+* **DAED 原生加持**：基于现代化 Linux 内核与 **eBPF 技术** 的网络代理工具，转发性能强悍，拥有极简、精美的独立 Web 界面。
+* **经典网络代理**：同时集成了 `PassWall`（含 Xray/SS 核心），满足多样化全家桶级网络分流。
 
-## Tips
+### 🛡️ 3. 完美的异地组网与网络优化
+* **内网穿透与安全组网**：集成 `ZeroTier`、`N2N`、`SoftEther VPN` 及 `IPSec`，即便在公网无 IP 的环境下也能随时随地用手机调取家中软路由上的 4K 影音流。
+* **多线多拨与控流**：自带 `syncdial`（多拨）、`eqos`（网速控制）与 `wrtbwmon`（实时带宽流量统计），充分压榨宽带带宽。
 
-- It may take a long time to create a `.config` file and build the OpenWrt firmware. Thus, before create repository to build your own firmware, you may check out if others have already built it which meet your needs by simply [search `Actions-Openwrt` in GitHub](https://github.com/search?q=Actions-openwrt).
-- Add some meta info of your built firmware (such as firmware architecture and installed packages) to your repository introduction, this will save others' time.
-
-## Credits
-
-- [Microsoft Azure](https://azure.microsoft.com)
-- [GitHub Actions](https://github.com/features/actions)
-- [OpenWrt](https://github.com/openwrt/openwrt)
-- [coolsnowwolf/lede](https://github.com/coolsnowwolf/lede)
-- [Mikubill/transfer](https://github.com/Mikubill/transfer)
-- [softprops/action-gh-release](https://github.com/softprops/action-gh-release)
-- [Mattraks/delete-workflow-runs](https://github.com/Mattraks/delete-workflow-runs)
-- [dev-drprasad/delete-older-releases](https://github.com/dev-drprasad/delete-older-releases)
-- [peter-evans/repository-dispatch](https://github.com/peter-evans/repository-dispatch)
-
-## License
-
-[MIT](https://github.com/P3TERX/Actions-OpenWrt/blob/main/LICENSE) © [**P3TERX**](https://p3terx.com)
+### 🎨 4. 高颜值交互界面
+* 默认集成全网高赞、精美的 **`luci-theme-argon`** 主题，带来丝滑顺畅的响应式控制面板体验。

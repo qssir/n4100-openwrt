@@ -122,14 +122,15 @@ jobs:
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
       with:
         name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: openwrt/bin
+        path: /workdir/openwrt/bin
 
     - name: Organize files
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      # 👑 物理路径绝杀：强制指定工作目录为绝对路径，绕过 GitHub Actions 的默认相对目录检索限制
+      working-directory: /workdir/openwrt
       run: |
-        # 👑 终极黄金对齐：直接进入通过软链接映射回来的标准工作区相对路径，彻底规避双重层级死锁
-        cd openwrt/bin/targets/*/*
+        cd bin/targets/*/*
         rm -rf packages
         rm -rf *swapfile* || true
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV

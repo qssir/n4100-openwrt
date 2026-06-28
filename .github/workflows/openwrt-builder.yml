@@ -15,10 +15,8 @@ name: OpenWrt Builder
 on:
   repository_dispatch:
   workflow_dispatch:
-  # 👑 自动化追新机制 1：定时轮询（设定为北京时间每周五凌晨 04:00 自动检查上游并触发编译）
   schedule:
     - cron: '0 20 * * 4'
-  # 👑 自动化追新机制 2：点击自己仓库的 Star 也能强行触发编译
   watch:
     types: [started]
 
@@ -132,6 +130,10 @@ jobs:
       run: |
         cd openwrt/bin/targets/*/*
         rm -rf packages
+        
+        # 👑 最终精准绞杀：强力粉碎并擦除任何混入固件输出目录的 swapfile 伪造垃圾文件，断绝发布插件的报错根源
+        rm -rf *swapfile* || true
+        
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 

@@ -128,7 +128,6 @@ jobs:
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
-        # 👑 黄金无损修复：回归标准安全相对路径，彻底打破任何多重虚拟分区的路径死锁
         cd openwrt/bin/targets/*/*
         rm -rf packages
         rm -rf *swapfile* || true
@@ -159,9 +158,8 @@ jobs:
         tag_name: ${{ steps.tag.outputs.release_tag }}
         body_path: release.txt
         files: |
-          ${{ env.FIRMWARE }}/*.img.gz
-          ${{ env.FIRMWARE }}/*.manifest
-          ${{ env.FIRMWARE }}/*.json
+          # 👑 破壁通配符解禁：解除特定后缀的上传壁垒，直接强行发布该目录下的全部固件成果
+          ${{ env.FIRMWARE }}/*
 
     - name: Delete workflow runs
       uses: Mattraks/delete-workflow-runs@main

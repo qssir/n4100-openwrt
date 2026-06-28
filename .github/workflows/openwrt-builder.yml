@@ -130,10 +130,7 @@ jobs:
       run: |
         cd openwrt/bin/targets/*/*
         rm -rf packages
-        
-        # 👑 最终精准绞杀：强力粉碎并擦除任何混入固件输出目录的 swapfile 伪造垃圾文件，断绝发布插件的报错根源
         rm -rf *swapfile* || true
-        
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -160,7 +157,11 @@ jobs:
       with:
         tag_name: ${{ steps.tag.outputs.release_tag }}
         body_path: release.txt
-        files: ${{ env.FIRMWARE }}/*
+        # 👑 终极精细化隔离：明确限定发布组件只抓取常见的固件格式文件，直接杜绝任何对宿主机 swapfile 的越权抓取
+        files: |
+          ${{ env.FIRMWARE }}/*.img.gz
+          ${{ env.FIRMWARE }}/*.manifest
+          ${{ env.FIRMWARE }}/*.json
 
     - name: Delete workflow runs
       uses: Mattraks/delete-workflow-runs@main

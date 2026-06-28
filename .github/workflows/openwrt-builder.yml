@@ -1,3 +1,4 @@
+#
 # https://github.com/P3TERX/Actions-OpenWrt
 #
 # File: .github/workflows/openwrt-builder.yml
@@ -127,8 +128,8 @@ jobs:
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
-        # 👑 终极标准变量定位：直接锁定工作区相对路径，彻底规避任何多重虚拟分区的路径死锁
-        cd $GITHUB_WORKSPACE/openwrt/bin/targets/*/*
+        # 👑 终极黄金对齐：直接进入通过软链接映射回来的标准工作区相对路径，彻底规避双重层级死锁
+        cd openwrt/bin/targets/*/*
         rm -rf packages
         rm -rf *swapfile* || true
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV

@@ -49,11 +49,8 @@ jobs:
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
         sudo docker image prune --all --force
         sudo -E apt-get -qq update
-        
-        # 👑 依赖环境粉碎修补：剔除了 ubuntu-24.04 源中不存在的 uglifyjs 和 xmlto，改用标准兼容依赖
         sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp ninja-build p7zip p7zip-full patch pkgconf python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo upx-ucl unzip vim wget xxd zlib1g-dev
         
-        # 突破工具链锁：用官方标准二进制包秒级热升级至最新的 CMake 3.31+ 核心群
         sudo apt-get remove --purge -y cmake || true
         wget -qO- https://github.com/Kitware/CMake/releases/download/v3.31.5/cmake-3.31.5-linux-x86_64.tar.gz | sudo tar --strip-components=1 -xzC /usr/local
         cmake --version
@@ -125,19 +122,14 @@ jobs:
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
       with:
         name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: /workdir/openwrt/bin
+        path: openwrt/bin
 
     - name: Organize files
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
-        # 👑 智能无脑搜寻机制：全局直接搜寻真实的 targets 目标产物目录，彻底免疫任何分区变化导致的路径假象
-        TARGET_DIR=$(find /workdir/openwrt/bin/targets/ -type d -path "*/bin/targets/*/*" 2>/dev/null | head -n 1)
-        if [ -z "$TARGET_DIR" ]; then
-            TARGET_DIR=$(find $GITHUB_WORKSPACE -type d -path "*/bin/targets/*/*" 2>/dev/null | head -n 1)
-        fi
-        
-        cd "$TARGET_DIR"
+        # 👑 黄金无损修复：回归标准安全相对路径，彻底打破任何多重虚拟分区的路径死锁
+        cd openwrt/bin/targets/*/*
         rm -rf packages
         rm -rf *swapfile* || true
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV

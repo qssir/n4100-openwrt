@@ -22,9 +22,9 @@ sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/M
 # 2. 🎬 4K 高码率大文件局域网播放吞吐量深度调优
 # =====================================================================
 
-# 2.1 注入标准 sysctl 内核网络栈与内存隔离补丁 (解决大缓存卡顿与高码率掉帧)
-mkdir -p package/base-files/files/etc/sysctl.d
-cat << 'EOF' > package/base-files/files/etc/sysctl.d/99-4k-media-optimize.conf
+# 2.1 注入标准 sysctl 内核网络栈与内存隔离补丁 (精准修正到本地相对文件覆盖目录，彻底粉碎权限 Bug)
+mkdir -p files/etc/sysctl.d
+cat << 'EOF' > files/etc/sysctl.d/99-4k-media-optimize.conf
 # 开启 BBR 拥塞控制算法
 net.core.default_qdisc=fq
 net.ipv4.tcp_congestion_control=bbr
@@ -58,14 +58,14 @@ if [ -f "$SMB_CONF" ]; then
 fi
 
 
-# 2.3 注入开机自启脚本补丁 (实现 1T SSD 块设备 16MB 预读 + 动态内存释放保护)
-mkdir -p package/base-files/files/etc/init.d
-cat << 'EOF' > package/base-files/files/etc/init.d/media_io_init
+# 2.3 注入开机自启脚本补丁 (精准修正到本地相对文件覆盖目录，实现 1T SSD 块设备 16MB 预读 + 动态内存释放保护)
+mkdir -p files/etc/init.d
+cat << 'EOF' > files/etc/init.d/media_io_init
 #!/bin/sh /etc/rc.common
 START=99
 
 start() {
-    # 针对原生大容量 1T SSD 块设备（通常为 sda 或 nvme0n1）强行拉满 16MB 预读缓冲区 (16384 sectors)
+    # 针对原生大容量 1T SSD 块设备 强行拉满 16MB 预读缓冲区 (16384 sectors)
     for dev in sda sdb nvme0n1; do
         if [ -b "/dev/$dev" ]; then
             echo "none" > /sys/block/$dev/queue/scheduler 2>/dev/null || true
@@ -77,12 +77,12 @@ start() {
     modprobe tcp_bbr 2>/dev/null || true
 }
 EOF
-chmod +x package/base-files/files/etc/init.d/media_io_init
+chmod +x files/etc/init.d/media_io_init
 
 
-# 2.4 注入定时计划任务 (每天凌晨自动化清理内存与重启缓存，维持内网广播全天候生命体征)
-mkdir -p package/base-files/files/etc/crontabs
-cat << 'EOF' >> package/base-files/files/etc/crontabs/root
+# 2.4 注入定时计划任务 (精准修正到本地相对文件覆盖目录，每天凌晨自动化清理内存与重启缓存)
+mkdir -p files/etc/crontabs
+cat << 'EOF' >> files/etc/crontabs/root
 30 4 * * * sync && echo 3 > /proc/sys/vm/drop_caches
 0 5 * * * reboot
 EOF

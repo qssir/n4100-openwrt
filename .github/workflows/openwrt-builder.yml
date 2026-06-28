@@ -128,18 +128,15 @@ jobs:
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
-        # 👑 降维打击：移除任何对临时 /workdir 的工作目录标记，直接回归标准安全路径，并加入容错全局定位
-        cd $GITHUB_WORKSPACE
-        if [ -d "openwrt/bin/targets" ]; then
-            cd openwrt/bin/targets/*/*
-        else
-            # 全局兜底：如果路径发生偏移，雷达式深度搜索固件包所在绝对路径
-            TARGET_DIR=$(find $GITHUB_WORKSPACE -type d -path "*/bin/targets/*/*" | head -n 1)
-            cd "$TARGET_DIR"
-        fi
-        rm -rf packages
-        rm -rf *swapfile* || true
-        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        # 👑 终极非破坏式定位：原地直接全局雷达深度扫描目标固件包所在的真实物理路径，100% 杜绝 cd 命令引发的各种死锁
+        TARGET_DIR=$(find $PWD -type d -path "*/bin/targets/*/*" | head -n 1)
+        
+        # 降维安全清理残留
+        rm -rf "$TARGET_DIR/packages"
+        rm -rf "$TARGET_DIR"/*swapfile* || true
+        
+        # 将提取到的终极绝对路径注入环境变量
+        echo "FIRMWARE=$TARGET_DIR" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: Upload firmware directory

@@ -180,6 +180,28 @@ jobs:
         echo "Modified CMakeLists.txt count:"
         find . -name "CMakeLists.txt" -exec grep -l "cmake_minimum_required(VERSION 3.30" {} \; | wc -l
 
+    - name: Fix Python3 build
+      run: |
+        cd /workdir/openwrt
+        echo "=== Fixing Python3 SSL build issue ==="
+        # 清理 Python3 的编译缓存和标记
+        rm -rf build_dir/hostpkg/Python-*
+        rm -rf staging_dir/hostpkg/stamp/.python3_*
+        rm -rf staging_dir/hostpkg/lib/python3*
+        rm -rf staging_dir/hostpkg/bin/python3*
+        rm -rf staging_dir/hostpkg/include/python3*
+        # 确保 OpenSSL 开发文件存在
+        ls -la /usr/include/openssl/ssl.h 2>/dev/null || echo "OpenSSL headers missing"
+        # 清理 Python3 包并重新准备
+        make package/feeds/packages/python3/clean V=s || true
+        # 修改 Python3 Makefile 跳过 SSL 模块（如果必要）
+        if [ -f "feeds/packages/lang/python/python3/Makefile" ]; then
+          echo "=== Backing up Python3 Makefile ==="
+          cp feeds/packages/lang/python/python3/Makefile feeds/packages/lang/python/python3/Makefile.bak
+          # 尝试修复 SSL 模块路径
+          sed -i 's|_ssl _ssl.c|_ssl _ssl.c -lssl -lcrypto|g' feeds/packages/lang/python/python3/Makefile 2>/dev/null || true
+        fi
+
     - name: Compile the firmware
       id: compile
       env:

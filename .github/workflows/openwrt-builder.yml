@@ -1,8 +1,7 @@
-#
 # https://github.com/P3TERX/Actions-OpenWrt
 #
 # File: .github/workflows/openwrt-builder.yml
-# Description: Build OpenWrt using GitHub Actions
+# Description: Build OpenWrt using GitHub Actions with Auto-Update Trigger
 #
 # Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
 #
@@ -17,8 +16,8 @@ on:
   workflow_dispatch:
 
 env:
-  REPO_URL: https://github.com/coolsnowwolf/lede
-  REPO_BRANCH: master
+  REPO_URL: https://github.com/immortalwrt/immortalwrt
+  REPO_BRANCH: openwrt-24.10
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
   DIY_P1_SH: diy-part1.sh
@@ -35,31 +34,57 @@ jobs:
     steps:
     - name: Free disk space and setup swap
       run: |
-        # 清理系统默认 swap（新版 runner 对 /swapfile 权限收紧）
         sudo swapoff /swapfile 2>/dev/null || true
         sudo rm -f /swapfile 2>/dev/null || true
-        
-        # 在 /mnt 重建 swap（该目录有写权限）
         sudo mkdir -p /mnt/swap
-        sudo fallocate -l 10G /mnt/swapfile || sudo dd if=/dev/zero of=/mnt/swapfile bs=1M count=10240
+        sudo fallocate -l 16G /mnt/swapfile || sudo dd if=/dev/zero of=/mnt/swapfile bs=1M count=16384
         sudo chmod 600 /mnt/swapfile
         sudo mkswap /mnt/swapfile
         sudo swapon /mnt/swapfile
+        echo "=== Memory Status ==="
+        free -h
         sudo swapon --show
-        
-        # 清理空间
+        echo "=== Disk Status ==="
+        df -hT
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
         sudo docker image prune --all --force 2>/dev/null || true
 
     - name: Checkout
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
 
     - name: Initialization environment
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
         sudo -E apt-get -qq update
-        sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
+        sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpcre2-dev libpython3-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp ninja-build p7zip p7zip-full patch pkgconf python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
+        
+        # 彻底移除旧版 CMake
+        sudo apt-get remove --purge -y cmake cmake-data || true
+        sudo rm -f /usr/bin/cmake /usr/bin/ctest /usr/bin/cpack /usr/local/bin/cmake /usr/local/bin/ctest /usr/local/bin/cpack
+        
+        # 安装 CMake 3.31.5
+        wget -qO /tmp/cmake.tar.gz https://github.com/Kitware/CMake/releases/download/v3.31.5/cmake-3.31.5-linux-x86_64.tar.gz
+        sudo tar -xzf /tmp/cmake.tar.gz -C /opt
+        
+        # 创建全局符号链接
+        sudo ln -sf /opt/cmake-3.31.5-linux-x86_64/bin/cmake /usr/bin/cmake
+        sudo ln -sf /opt/cmake-3.31.5-linux-x86_64/bin/ctest /usr/bin/ctest
+        sudo ln -sf /opt/cmake-3.31.5-linux-x86_64/bin/cpack /usr/bin/cpack
+        sudo ln -sf /opt/cmake-3.31.5-linux-x86_64/bin/cmake /usr/local/bin/cmake
+        sudo ln -sf /opt/cmake-3.31.5-linux-x86_64/bin/ctest /usr/local/bin/ctest
+        sudo ln -sf /opt/cmake-3.31.5-linux-x86_64/bin/cpack /usr/local/bin/cpack
+        
+        # 刷新缓存并验证
+        hash -r
+        echo "=== CMake Version Check ==="
+        which cmake
+        cmake --version
+        echo "=== CTest Version Check ==="
+        ctest --version
+        
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
         sudo timedatectl set-timezone "$TZ"
@@ -98,17 +123,95 @@ jobs:
       id: package
       run: |
         cd openwrt
+        echo "=== .config first 30 lines ==="
+        cat .config | head -30
+        echo "=== Running make defconfig ==="
         make defconfig
-        make download -j8
+        echo "=== Downloading packages ==="
+        make download -j8 || make download -j1 || { echo "Download failed, retrying..."; sleep 30; make download -j1; }
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
+    - name: Fix CMake for OpenWrt compile
+      run: |
+        cd /workdir/openwrt
+        git checkout tools/cmake/Makefile 2>/dev/null || true
+        
+        mkdir -p staging_dir/host/bin
+        cp -f /opt/cmake-3.31.5-linux-x86_64/bin/cmake staging_dir/host/bin/cmake || true
+        cp -f /opt/cmake-3.31.5-linux-x86_64/bin/ctest staging_dir/host/bin/ctest || true
+        cp -f /opt/cmake-3.31.5-linux-x86_64/bin/cpack staging_dir/host/bin/cpack || true
+        chmod +x staging_dir/host/bin/cmake staging_dir/host/bin/ctest staging_dir/host/bin/cpack || true
+        
+        mkdir -p build_dir/host/cmake-3.31.5
+        touch build_dir/host/cmake-3.31.5/.prepared
+        touch build_dir/host/cmake-3.31.5/.configured
+        touch build_dir/host/cmake-3.31.5/.built
+        touch build_dir/host/cmake-3.31.5/.installed
+        
+        if [ -f "include/cmake.mk" ]; then
+          sed -i 's|CMAKE_COMMAND := .*|CMAKE_COMMAND := /usr/bin/cmake|g' include/cmake.mk || true
+          echo "=== cmake.mk CMAKE_COMMAND ==="
+          grep "CMAKE_COMMAND" include/cmake.mk | head -3
+        fi
+        
+        # 全局降级所有 CMakeLists.txt 的 3.31 要求
+        echo "=== Fixing CMakeLists.txt files ==="
+        find . -name "CMakeLists.txt" -exec grep -l "cmake_minimum_required(VERSION 3.31" {} \; | while read f; do
+          echo "Fixing: $f"
+          sed -i 's/cmake_minimum_required(VERSION 3\.31)/cmake_minimum_required(VERSION 3.30)/g' "$f"
+        done
+        
+        echo "=== Verification ==="
+        echo "System cmake:"
+        /usr/bin/cmake --version
+        echo "Staging cmake:"
+        ./staging_dir/host/bin/cmake --version 2>/dev/null || echo "not found"
+        echo "Modified CMakeLists.txt count:"
+        find . -name "CMakeLists.txt" -exec grep -l "cmake_minimum_required(VERSION 3.30" {} \; | wc -l
+
+    - name: Fix Python3 and PCRE2 host build
+      run: |
+        cd /workdir/openwrt
+        echo "=== 👑 修复 libselinux 所需的 pcre2 工具链依赖偏置 ==="
+        # 强行激活 host 工具链环境下的 pcre2 预编译依赖项，防止隔离沙盒中丢失 pcre2.h
+        make package/feeds/packages/pcre2/host/compile V=s || true
+        
+        echo "=== Fixing Python3 SSL build issue ==="
+        rm -rf build_dir/hostpkg/Python-*
+        rm -rf staging_dir/hostpkg/stamp/.python3_*
+        rm -rf staging_dir/hostpkg/lib/python3*
+        rm -rf staging_dir/hostpkg/bin/python3*
+        rm -rf staging_dir/hostpkg/include/python3*
+        ls -la /usr/include/openssl/ssl.h 2>/dev/null || echo "OpenSSL headers missing"
+        make package/feeds/packages/python3/clean V=s || true
+        if [ -f "feeds/packages/lang/python/python3/Makefile" ]; then
+          echo "=== Backing up Python3 Makefile ==="
+          cp feeds/packages/lang/python/python3/Makefile feeds/packages/lang/python/python3/Makefile.bak
+          sed -i 's|_ssl _ssl.c|_ssl _ssl.c -lssl -lcrypto|g' feeds/packages/lang/python/python3/Makefile 2>/dev/null || true
+        fi
+
     - name: Compile the firmware
       id: compile
+      env:
+        PATH: /opt/cmake-3.31.5-linux-x86_64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       run: |
         cd openwrt
-        echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j1 || make -j1 V=s
+        echo "=== PATH ==="
+        echo $PATH
+        echo "=== Which CMake ==="
+        which cmake
+        cmake --version
+        echo "=== Memory before compile ==="
+        free -h
+        echo "=== CPU info ==="
+        nproc
+        echo "=== Starting compile with $(nproc) threads ==="
+        make -j$(nproc) || { echo "=== Parallel compile failed, retrying with single thread ==="; make -j1; } || { echo "=== Single thread failed, verbose mode ==="; make -j1 V=s; }
+        if [ ! -d "bin/targets" ]; then
+          echo "ERROR: Compile failed, bin/targets directory not found"
+          exit 1
+        fi
         echo "status=success" >> $GITHUB_OUTPUT
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
@@ -123,14 +226,15 @@ jobs:
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
       with:
         name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: openwrt/bin
+        path: /workdir/openwrt/bin/targets
 
     - name: Organize files
       id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
-        cd openwrt/bin/targets/*/*
+        cd /workdir/openwrt/bin/targets/*/* || { echo "ERROR: Firmware directory not found"; exit 1; }
         rm -rf packages
+        rm -rf *swapfile* || true
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -146,7 +250,9 @@ jobs:
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       run: |
         echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
-        touch release.txt
+        echo "N4100 ImmortalWrt 24.10 固件" > release.txt
+        echo "编译时间: $(date)" >> release.txt
+        echo "源码: $REPO_URL ($REPO_BRANCH)" >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: Upload firmware to release
@@ -157,7 +263,8 @@ jobs:
       with:
         tag_name: ${{ steps.tag.outputs.release_tag }}
         body_path: release.txt
-        files: ${{ env.FIRMWARE }}/*
+        files: |
+          ${{ env.FIRMWARE }}/*
 
     - name: Delete workflow runs
       uses: Mattraks/delete-workflow-runs@v2

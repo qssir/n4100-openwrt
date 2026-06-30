@@ -86,8 +86,13 @@ jobs:
     - name: Install feeds
       run: |
         cd openwrt && ./scripts/feeds install -a
-        # 👑 1. 核心插件门槛降级：防止拉取回来的激进 feeds 锁定过高的编译版本限制
+        
+        # 👑 1. 核心插件门槛降级：防止拉取回来的激进 feeds 锁定过高的 CMake 编译版本限制
         find feeds/ -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION 3\.31)/cmake_minimum_required(VERSION 3.30)/g' {} \; 2>/dev/null || true
+        
+        # 👑 2. 釜底抽薪：直接从拉取后的软件源包仓库里将引发连环死锁的 python3 源码目录物理移除！
+        # 彻底阻断任何潜在应用在后台对其发起隐性拉取，强行将整个编译链净化！
+        rm -rf feeds/packages/lang/python/python3 2>/dev/null || true
 
     - name: Load custom configuration
       run: |
@@ -102,8 +107,7 @@ jobs:
       run: |
         cd openwrt
         
-        # 👑 2. 战略战略断腕补丁：在执行配置前，从 .config 中强行彻底剔除引发环境死锁的 python3 软件包组件
-        # 同时关闭依赖于它的非必要三方辅助组件，确保核心影视、组网、eBPF 代理及大分区 100% 满血生成
+        # 再次兜底安全擦除配置宏，防止产生空项
         sed -i 's/CONFIG_PACKAGE_python3=y/# CONFIG_PACKAGE_python3 is not set/g' .config 2>/dev/null || true
         sed -i 's/CONFIG_PACKAGE_luci-app-store=y/# CONFIG_PACKAGE_luci-app-store is not set/g' .config 2>/dev/null || true
         

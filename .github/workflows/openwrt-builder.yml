@@ -90,8 +90,7 @@ jobs:
         # 👑 1. 核心插件门槛降级：防止拉取回来的激进 feeds 锁定过高的 CMake 编译版本限制
         find feeds/ -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION 3\.31)/cmake_minimum_required(VERSION 3.30)/g' {} \; 2>/dev/null || true
         
-        # 👑 2. 釜底抽薪：直接从拉取后的软件源包仓库里将引发连环死锁的 python3 源码目录物理移除！
-        # 彻底阻断任何潜在应用在后台对其发起隐性拉取，强行将整个编译链净化！
+        # 👑 2. 交叉编译环境净化：物理隔离拖累整个编译链的 Python3 hostpkg 异常崩溃源码
         rm -rf feeds/packages/lang/python/python3 2>/dev/null || true
 
     - name: Load custom configuration
@@ -107,12 +106,17 @@ jobs:
       run: |
         cd openwrt
         
-        # 再次兜底安全擦除配置宏，防止产生空项
+        # 👑 3. 磁盘防炸盘强力重写锁：强行抹除并重写 .config 文件中让虚拟机崩溃的超大容量参数
+        # 直接在云端强制重置为主分区 2GB 豪华空间，多余的 900+G 留到刷机后用内置的 Diskman 完美一键挂载扩容
+        sed -i 's/CONFIG_TARGET_ROOTFS_PARTSIZE=.*/CONFIG_TARGET_ROOTFS_PARTSIZE=2048/g' .config 2>/dev/null || true
         sed -i 's/CONFIG_PACKAGE_python3=y/# CONFIG_PACKAGE_python3 is not set/g' .config 2>/dev/null || true
         sed -i 's/CONFIG_PACKAGE_luci-app-store=y/# CONFIG_PACKAGE_luci-app-store is not set/g' .config 2>/dev/null || true
         
         echo "=== Running make defconfig ==="
         make defconfig
+        echo "=== Verifying Target Partsize ==="
+        grep "CONFIG_TARGET_ROOTFS_PARTSIZE" .config || true
+        
         echo "=== Downloading packages ==="
         make download -j8 || make download -j1 || { echo "Download failed, retrying..."; sleep 10; make download -j1; }
         find dl -size -1024c -exec ls -l {} \;

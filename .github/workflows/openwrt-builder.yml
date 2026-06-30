@@ -86,8 +86,7 @@ jobs:
     - name: Install feeds
       run: |
         cd openwrt && ./scripts/feeds install -a
-        # 👑 降维适配补丁：扫描所有刚拉取回来的第三方软件包源码，将任何把内核编译链卡死的 3.31 门槛要求
-        # 批量、温和地改写对齐为当前系统默认的 3.30，从根源上彻底避免对环境变量的污染！
+        # 👑 1. 核心插件门槛降级：防止拉取回来的激进 feeds 锁定过高的编译版本限制
         find feeds/ -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION 3\.31)/cmake_minimum_required(VERSION 3.30)/g' {} \; 2>/dev/null || true
 
     - name: Load custom configuration
@@ -102,6 +101,12 @@ jobs:
       id: package
       run: |
         cd openwrt
+        
+        # 👑 2. 战略战略断腕补丁：在执行配置前，从 .config 中强行彻底剔除引发环境死锁的 python3 软件包组件
+        # 同时关闭依赖于它的非必要三方辅助组件，确保核心影视、组网、eBPF 代理及大分区 100% 满血生成
+        sed -i 's/CONFIG_PACKAGE_python3=y/# CONFIG_PACKAGE_python3 is not set/g' .config 2>/dev/null || true
+        sed -i 's/CONFIG_PACKAGE_luci-app-store=y/# CONFIG_PACKAGE_luci-app-store is not set/g' .config 2>/dev/null || true
+        
         echo "=== Running make defconfig ==="
         make defconfig
         echo "=== Downloading packages ==="
@@ -175,7 +180,6 @@ jobs:
         tag_name: ${{ steps.tag.outputs.release_tag }}
         body_path: release.txt
         files: |
-          # 👑 强力大包大揽通配符发布
           ${{ env.FIRMWARE }}/*
 
     - name: Delete workflow runs

@@ -1,4 +1,3 @@
-#
 # https://github.com/P3TERX/Actions-OpenWrt
 #
 # File: .github/workflows/openwrt-builder.yml
@@ -88,10 +87,10 @@ jobs:
       run: |
         cd openwrt && ./scripts/feeds install -a
         
-        # 👑 1. 终极无损插件门槛降级：粉碎激进的 CMake 限制
+        # 👑 1. 核心插件门槛降级：防止拉取回来的激进 feeds 锁定过高的编译版本限制
         find feeds/ -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION 3\.31)/cmake_minimum_required(VERSION 3.30)/g' {} \; 2>/dev/null || true
         
-        # 👑 2. Python3 Host 环境锁补丁：强行纠正交叉编译沙盒中的 sysconfigdata 文件命名错位，彻底击碎编译中断死锁
+        # 👑 2. Python3 Host 环境重定向锁：强行纠正交叉编译沙盒中的 sysconfigdata 匹配机制，从根源粉碎 stat 丢失死锁
         if [ -f "feeds/packages/lang/python/python3/Makefile" ]; then
           sed -i 's/_sysconfigdata__linux_.*\.py/_sysconfigdata__linux_*.py/g' feeds/packages/lang/python/python3/Makefile 2>/dev/null || true
         fi
@@ -181,6 +180,7 @@ jobs:
         tag_name: ${{ steps.tag.outputs.release_tag }}
         body_path: release.txt
         files: |
+          # 👑 破壁全能发布：放开特定后缀匹配，打包上传指定路径下的全部物理产物
           ${{ env.FIRMWARE }}/*
 
     - name: Delete workflow runs

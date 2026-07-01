@@ -1,4 +1,3 @@
-#
 # https://github.com/P3TERX/Actions-OpenWrt
 #
 # File: .github/workflows/openwrt-builder.yml
@@ -88,19 +87,17 @@ jobs:
       run: |
         cd openwrt && ./scripts/feeds install -a
         
-        # 1. 核心插件门槛降级
+        # 1. 核心编译门槛降级（防止上游个别 feeds 激进限制）
         find feeds/ -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION 3\.31)/cmake_minimum_required(VERSION 3.30)/g' {} \; 2>/dev/null || true
         
-        # 2. 交叉编译环境安全净化
+        # 2. 物理隔离高风险 hostpkg 源码目录
         rm -rf feeds/packages/lang/python/python3 2>/dev/null || true
 
     - name: Load custom configuration
       run: |
+        # 精准本地相对寻址复制，防止Actions虚拟机目录偏置
         [ -e files ] && mv files openwrt/files
-        # 先行把本地的 config.txt 平铺备份到 openwrt/.config 之中
-        [ -e $CONFIG_FILE ] && cp -f $CONFIG_FILE openwrt/.config
-        # 同时把原始 config.txt 保存到公共区域，防止后续嵌套路径找不到
-        cp -f $CONFIG_FILE /workdir/config_backup.txt || true
+        [ -e "$CONFIG_FILE" ] && cp -f "$CONFIG_FILE" openwrt/.config
         chmod +x $DIY_P2_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
@@ -110,28 +107,15 @@ jobs:
       run: |
         cd openwrt
         
-        echo "=== Running make defconfig ==="
+        # 👑 3. 核心融合：通过标准 defconfig 基于你的纯净 seed 配置生成完全体定制树
         make defconfig
         
-        # 👑 3. 终极强锁覆盖：直接调用我们在前置安全区域备份好的纯净配置文件进行强行覆盖，完美越过嵌套错位盲区
-        if [ -f "/workdir/config_backup.txt" ]; then
-          cp -f /workdir/config_backup.txt .config
-        fi
-        
-        # 👑 4. 彻底擦除遗留的开发调试宏，强制限定 2GB 固件主分区
-        sed -i 's/CONFIG_DEVEL=y/# CONFIG_DEVEL is not set/g' .config 2>/dev/null || true
-        sed -i 's/CONFIG_TOOLCHAINOPTS=y/# CONFIG_TOOLCHAINOPTS is not set/g' .config 2>/dev/null || true
-        sed -i 's/CONFIG_TARGET_ROOTFS_PARTSIZE=.*/CONFIG_TARGET_ROOTFS_PARTSIZE=2048/g' .config 2>/dev/null || true
-        
-        # 👑 5. 核心融合：通过官方 defconfig 确认重载并钉牢全部自定义大包插件
-        make defconfig
-        
-        echo "=== Verifying Consolidated Custom Menu ==="
-        grep "CONFIG_PACKAGE_luci-app-alist" .config || true
-        grep "CONFIG_PACKAGE_daed" .config || true
+        echo "=== 正在验证配置是否成功加载 ==="
+        grep "CONFIG_PACKAGE_luci-app-alist" .config || echo "AList 核心丢失！"
+        grep "CONFIG_PACKAGE_daed" .config || echo "DAED 核心丢失！"
         grep "CONFIG_TARGET_ROOTFS_PARTSIZE" .config || true
         
-        echo "=== Downloading packages ==="
+        echo "=== 正在高速下载应用依赖包 ==="
         make download -j8 || make download -j1 || { echo "Download failed, retrying..."; sleep 10; make download -j1; }
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;

@@ -97,8 +97,10 @@ jobs:
     - name: Load custom configuration
       run: |
         [ -e files ] && mv files openwrt/files
-        # 预先将你的 config.txt 复制进编译主目录
+        # 先行把本地的 config.txt 平铺备份到 openwrt/.config 之中
         [ -e $CONFIG_FILE ] && cp -f $CONFIG_FILE openwrt/.config
+        # 同时把原始 config.txt 保存到公共区域，防止后续嵌套路径找不到
+        cp -f $CONFIG_FILE /workdir/config_backup.txt || true
         chmod +x $DIY_P2_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
@@ -108,15 +110,20 @@ jobs:
       run: |
         cd openwrt
         
-        # 👑 3. 终极无损强锁补丁：直接用你的完全体 config.txt 强行覆盖基础模板
-        cp -f $GITHUB_WORKSPACE/$CONFIG_FILE .config
+        echo "=== Running make defconfig ==="
+        make defconfig
         
-        # 👑 4. 彻底剔除炸盘空间参数与多余的开发宏
+        # 👑 3. 终极强锁覆盖：直接调用我们在前置安全区域备份好的纯净配置文件进行强行覆盖，完美越过嵌套错位盲区
+        if [ -f "/workdir/config_backup.txt" ]; then
+          cp -f /workdir/config_backup.txt .config
+        fi
+        
+        # 👑 4. 彻底擦除遗留的开发调试宏，强制限定 2GB 固件主分区
         sed -i 's/CONFIG_DEVEL=y/# CONFIG_DEVEL is not set/g' .config 2>/dev/null || true
         sed -i 's/CONFIG_TOOLCHAINOPTS=y/# CONFIG_TOOLCHAINOPTS is not set/g' .config 2>/dev/null || true
         sed -i 's/CONFIG_TARGET_ROOTFS_PARTSIZE=.*/CONFIG_TARGET_ROOTFS_PARTSIZE=2048/g' .config 2>/dev/null || true
         
-        # 👑 5. 核心融合：使用官方内建的 defconfig 补全并钉牢全部自定义插件
+        # 👑 5. 核心融合：通过官方 defconfig 确认重载并钉牢全部自定义大包插件
         make defconfig
         
         echo "=== Verifying Consolidated Custom Menu ==="

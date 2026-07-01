@@ -19,7 +19,7 @@ env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt
   REPO_BRANCH: openwrt-24.10
   FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: .config
+  CONFIG_FILE: config.txt
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
   UPLOAD_BIN_DIR: false
@@ -96,6 +96,7 @@ jobs:
     - name: Load custom configuration
       run: |
         [ -e files ] && mv files openwrt/files
+        # 加载精准对齐后的 config.txt 核心配置
         [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
         chmod +x $DIY_P2_SH
         cd openwrt
@@ -105,18 +106,8 @@ jobs:
       id: package
       run: |
         cd openwrt
-        
-        # 👑 3. 磁盘防炸盘强力重写锁：强行抹除并重写 .config 文件中让虚拟机崩溃的超大容量参数
-        # 直接在云端强制重置为主分区 2GB 豪华空间，多余的 900+G 留到刷机后用内置的 Diskman 完美一键挂载扩容
-        sed -i 's/CONFIG_TARGET_ROOTFS_PARTSIZE=.*/CONFIG_TARGET_ROOTFS_PARTSIZE=2048/g' .config 2>/dev/null || true
-        sed -i 's/CONFIG_PACKAGE_python3=y/# CONFIG_PACKAGE_python3 is not set/g' .config 2>/dev/null || true
-        sed -i 's/CONFIG_PACKAGE_luci-app-store=y/# CONFIG_PACKAGE_luci-app-store is not set/g' .config 2>/dev/null || true
-        
         echo "=== Running make defconfig ==="
         make defconfig
-        echo "=== Verifying Target Partsize ==="
-        grep "CONFIG_TARGET_ROOTFS_PARTSIZE" .config || true
-        
         echo "=== Downloading packages ==="
         make download -j8 || make download -j1 || { echo "Download failed, retrying..."; sleep 10; make download -j1; }
         find dl -size -1024c -exec ls -l {} \;

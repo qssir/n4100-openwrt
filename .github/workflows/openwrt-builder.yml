@@ -1,3 +1,4 @@
+#
 # https://github.com/P3TERX/Actions-OpenWrt
 #
 # File: .github/workflows/openwrt-builder.yml
@@ -90,13 +91,13 @@ jobs:
         # 1. 核心插件门槛降级
         find feeds/ -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION 3\.31)/cmake_minimum_required(VERSION 3.30)/g' {} \; 2>/dev/null || true
         
-        # 2. 交叉编译环境净化
+        # 2. 交叉编译环境安全净化
         rm -rf feeds/packages/lang/python/python3 2>/dev/null || true
 
     - name: Load custom configuration
       run: |
         [ -e files ] && mv files openwrt/files
-        # 👑 完美映射：将本地的 config.txt 正确重命名并覆盖进主线编译区
+        # 预先将你的 config.txt 复制进编译主目录
         [ -e $CONFIG_FILE ] && cp -f $CONFIG_FILE openwrt/.config
         chmod +x $DIY_P2_SH
         cd openwrt
@@ -107,22 +108,18 @@ jobs:
       run: |
         cd openwrt
         
-        echo "=== Running make defconfig ==="
-        make defconfig
-        
-        # 👑 3. 终极强锁覆盖：在 defconfig 模板生成后，用本地定制内容二次强行覆盖，锁死所有硬核功能
+        # 👑 3. 终极无损强锁补丁：直接用你的完全体 config.txt 强行覆盖基础模板
         cp -f $GITHUB_WORKSPACE/$CONFIG_FILE .config
         
-        # 👑 4. 彻底擦除遗留的开发调试宏，强制限定 2GB 固件主分区
+        # 👑 4. 彻底剔除炸盘空间参数与多余的开发宏
         sed -i 's/CONFIG_DEVEL=y/# CONFIG_DEVEL is not set/g' .config 2>/dev/null || true
         sed -i 's/CONFIG_TOOLCHAINOPTS=y/# CONFIG_TOOLCHAINOPTS is not set/g' .config 2>/dev/null || true
         sed -i 's/CONFIG_TARGET_ROOTFS_PARTSIZE=.*/CONFIG_TARGET_ROOTFS_PARTSIZE=2048/g' .config 2>/dev/null || true
-        sed -i 's/CONFIG_PACKAGE_python3=y/# CONFIG_PACKAGE_python3 is not set/g' .config 2>/dev/null || true
         
-        # 让内核确认重载我们暴力覆盖后的全新菜单
+        # 👑 5. 核心融合：使用官方内建的 defconfig 补全并钉牢全部自定义插件
         make defconfig
         
-        echo "=== Verifying Custom Packages ==="
+        echo "=== Verifying Consolidated Custom Menu ==="
         grep "CONFIG_PACKAGE_luci-app-alist" .config || true
         grep "CONFIG_PACKAGE_daed" .config || true
         grep "CONFIG_TARGET_ROOTFS_PARTSIZE" .config || true

@@ -87,17 +87,16 @@ jobs:
       run: |
         cd openwrt && ./scripts/feeds install -a
         
-        # 👑 1. 核心插件门槛降级：防止拉取回来的激进 feeds 锁定过高的 CMake 编译版本限制
+        # 1. 核心插件门槛降级
         find feeds/ -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION 3\.31)/cmake_minimum_required(VERSION 3.30)/g' {} \; 2>/dev/null || true
         
-        # 👑 2. 交叉编译环境净化：物理隔离拖累整个编译链的 Python3 hostpkg 异常崩溃源码
+        # 2. 交叉编译环境净化
         rm -rf feeds/packages/lang/python/python3 2>/dev/null || true
 
     - name: Load custom configuration
       run: |
         [ -e files ] && mv files openwrt/files
-        # 加载精准对齐后的 config.txt 核心配置
-        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+        [ -e $CONFIG_FILE ] && cp -f $CONFIG_FILE openwrt/.config
         chmod +x $DIY_P2_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
@@ -106,8 +105,27 @@ jobs:
       id: package
       run: |
         cd openwrt
+        
         echo "=== Running make defconfig ==="
         make defconfig
+        
+        # 👑 3. 终极暴力强锁补丁：在 make defconfig 执行完的最后一秒钟，
+        # 用你本地精心准备的完全体定制菜单彻底覆盖掉官方生成的默认空壳模板，将所有功能死死钉在内核里！
+        cp -f $GITHUB_WORKSPACE/$CONFIG_FILE .config
+        
+        # 👑 4. 再次兜底安全扩容参数
+        sed -i 's/CONFIG_DEVEL=y/# CONFIG_DEVEL is not set/g' .config 2>/dev/null || true
+        sed -i 's/CONFIG_TARGET_ROOTFS_PARTSIZE=.*/CONFIG_TARGET_ROOTFS_PARTSIZE=2048/g' .config 2>/dev/null || true
+        sed -i 's/CONFIG_PACKAGE_python3=y/# CONFIG_PACKAGE_python3 is not set/g' .config 2>/dev/null || true
+        
+        # 让内核确认重载我们暴力覆盖的菜单
+        make defconfig
+        
+        echo "=== Verifying Consolidated Config ==="
+        grep "CONFIG_PACKAGE_luci-app-alist" .config || true
+        grep "CONFIG_PACKAGE_daed" .config || true
+        grep "CONFIG_TARGET_ROOTFS_PARTSIZE" .config || true
+        
         echo "=== Downloading packages ==="
         make download -j8 || make download -j1 || { echo "Download failed, retrying..."; sleep 10; make download -j1; }
         find dl -size -1024c -exec ls -l {} \;

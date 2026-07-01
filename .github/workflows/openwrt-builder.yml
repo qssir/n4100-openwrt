@@ -96,6 +96,7 @@ jobs:
     - name: Load custom configuration
       run: |
         [ -e files ] && mv files openwrt/files
+        # 👑 完美映射：将本地的 config.txt 正确重命名并覆盖进主线编译区
         [ -e $CONFIG_FILE ] && cp -f $CONFIG_FILE openwrt/.config
         chmod +x $DIY_P2_SH
         cd openwrt
@@ -109,19 +110,19 @@ jobs:
         echo "=== Running make defconfig ==="
         make defconfig
         
-        # 👑 3. 终极暴力强锁补丁：在 make defconfig 执行完的最后一秒钟，
-        # 用你本地精心准备的完全体定制菜单彻底覆盖掉官方生成的默认空壳模板，将所有功能死死钉在内核里！
+        # 👑 3. 终极强锁覆盖：在 defconfig 模板生成后，用本地定制内容二次强行覆盖，锁死所有硬核功能
         cp -f $GITHUB_WORKSPACE/$CONFIG_FILE .config
         
-        # 👑 4. 再次兜底安全扩容参数
+        # 👑 4. 彻底擦除遗留的开发调试宏，强制限定 2GB 固件主分区
         sed -i 's/CONFIG_DEVEL=y/# CONFIG_DEVEL is not set/g' .config 2>/dev/null || true
+        sed -i 's/CONFIG_TOOLCHAINOPTS=y/# CONFIG_TOOLCHAINOPTS is not set/g' .config 2>/dev/null || true
         sed -i 's/CONFIG_TARGET_ROOTFS_PARTSIZE=.*/CONFIG_TARGET_ROOTFS_PARTSIZE=2048/g' .config 2>/dev/null || true
         sed -i 's/CONFIG_PACKAGE_python3=y/# CONFIG_PACKAGE_python3 is not set/g' .config 2>/dev/null || true
         
-        # 让内核确认重载我们暴力覆盖的菜单
+        # 让内核确认重载我们暴力覆盖后的全新菜单
         make defconfig
         
-        echo "=== Verifying Consolidated Config ==="
+        echo "=== Verifying Custom Packages ==="
         grep "CONFIG_PACKAGE_luci-app-alist" .config || true
         grep "CONFIG_PACKAGE_daed" .config || true
         grep "CONFIG_TARGET_ROOTFS_PARTSIZE" .config || true

@@ -85,7 +85,11 @@ jobs:
       run: cd openwrt && ./scripts/feeds update -a
 
     - name: Install feeds
-      run: cd openwrt && ./scripts/feeds install -a
+      run: |
+        cd openwrt && ./scripts/feeds install -a
+        
+        # 👑 核心降级锁：强行抹除非必要组件在编译树里锁死的激进 CMake 最低版本限制，解除死锁
+        find feeds/ -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION 3\.31)/cmake_minimum_required(VERSION 3.30)/g' {} \; 2>/dev/null || true
 
     - name: Load custom configuration
       run: |

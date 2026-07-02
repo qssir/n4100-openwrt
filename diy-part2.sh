@@ -6,16 +6,78 @@
 #
 
 # =====================================================================
+# 👑 0. 强行把全家桶核心配置追加到系统基础模板中（防止被 defconfig 恶意擦除）
+# =====================================================================
+echo "=== 正在对内核底座应用配置锁定锁 ==="
+cat << 'EOF' >> .config
+CONFIG_TARGET_x86=y
+CONFIG_TARGET_x86_64=y
+CONFIG_TARGET_x86_64_DEVICE_generic=y
+CONFIG_PACKAGE_kmod-fuse=y
+CONFIG_PACKAGE_fuse-utils=y
+CONFIG_PACKAGE_kmod-fs-ext4=y
+CONFIG_PACKAGE_kmod-fs-vfat=y
+CONFIG_PACKAGE_kmod-fs-ntfs3=y
+CONFIG_PACKAGE_luci-app-dockerman=y
+CONFIG_PACKAGE_docker-compose=y
+CONFIG_PACKAGE_luci-app-alist=y
+CONFIG_PACKAGE_luci-app-samba4=y
+CONFIG_PACKAGE_luci-app-minidlna=y
+CONFIG_PACKAGE_luci-app-qbittorrent=y
+CONFIG_PACKAGE_luci-app-transmission=y
+CONFIG_PACKAGE_luci-app-aria2=y
+CONFIG_PACKAGE_daed=y
+CONFIG_PACKAGE_luci-app-daed=y
+CONFIG_PACKAGE_luci-i18n-daed-zh-cn=y
+CONFIG_PACKAGE_luci-app-passwall=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Libev_Client=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray=y
+CONFIG_PACKAGE_luci-app-zerotier=y
+CONFIG_PACKAGE_luci-app-n2n=y
+CONFIG_PACKAGE_luci-app-softethervpn=y
+CONFIG_PACKAGE_luci-app-ipsec-vpnd=y
+CONFIG_PACKAGE_luci-app-syncdial=y
+CONFIG_PACKAGE_luci-app-eqos=y
+CONFIG_PACKAGE_luci-app-wrtbwmon=y
+CONFIG_PACKAGE_luci-app-ttyd=y
+CONFIG_PACKAGE_luci-app-diskman=y
+CONFIG_PACKAGE_luci-app-filebrowser=y
+CONFIG_PACKAGE_luci-theme-argon=y
+CONFIG_TARGET_KERNEL_PARTSIZE=128
+CONFIG_TARGET_ROOTFS_PARTSIZE=2048
+# CONFIG_DEVEL is not set
+# CONFIG_TOOLCHAINOPTS is not set
+EOF
+
+
+# =====================================================================
 # 1. 基础系统与管理权对齐 (IP / 密码 / 主题)
 # =====================================================================
 # 修改默认后台管理 IP 为 192.168.2.1
 sed -i 's/192.168.1.1/192.168.2.1/g' package/base-files/files/bin/config_generate
 
-# 【👑 终极密码权限修复】使用 uci-defaults 机制，在物理机首次开机时内部强行将密码锁定死为 password
+# 【👑 终极密码与专属壁纸开机联合置入锁】使用标准的 uci-defaults 机制
 mkdir -p files/etc/uci-defaults
 cat << 'EOF' > files/etc/uci-defaults/99_set_root_password
 #!/bin/sh
+# 1.1 强行锁定默认登录密码为 password
 printf "password\npassword\n" | passwd root
+
+# 1.2 物理壁纸跨线搬运：将 files 里的 wall.jpg 注入到 Argon 主题的核心缓存区
+TARGET_BG_DIR="/www/luci-static/argon/background"
+mkdir -p $TARGET_BG_DIR
+if [ -f "/etc/uci-defaults/wall.jpg" ]; then
+    cp -f /etc/uci-defaults/wall.jpg $TARGET_BG_DIR/wall.jpg
+    chmod 644 $TARGET_BG_DIR/wall.jpg
+fi
+
+# 1.3 👑 影视聚合起飞补丁：在后台建立独立的延迟触发任务，静默拉取 Docker 项目
+(
+    sleep 60
+    echo "=== 开始静默构建 AList 影视聚合 Docker 项目 ==="
+    bash -c "$(curl -sSLf https://ailg.ggbond.org/xy_install.sh)"
+) &
+
 exit 0
 EOF
 chmod +x files/etc/uci-defaults/99_set_root_password
@@ -40,10 +102,10 @@ if [ -f "$TITLE_FILE" ]; then
     sed -i 's/- 开源路由系统/- 乐享安全网关/g' $TITLE_FILE 2>/dev/null || true
 fi
 
-# 2.2 清理官方 Argon 自带的默认随机壁纸，强制系统只读取你在 files 目录里上传的专属主壁纸
+# 2.2 清理官方 Argon 自带的默认随机壁纸
 ARGON_BG_DIR="feeds/luci/themes/luci-theme-argon/htdocs/luci-static/argon/background"
 if [ -d "$ARGON_BG_DIR" ]; then
-    echo "正在清理 Argon 默认背景，锁定专属壁纸..."
+    echo "正在清理 Argon 默认背景..."
     rm -rf $ARGON_BG_DIR/*
 fi
 

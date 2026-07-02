@@ -85,26 +85,12 @@ jobs:
       run: cd openwrt && ./scripts/feeds update -a
 
     - name: Install feeds
-      run: |
-        cd openwrt && ./scripts/feeds install -a
-        
-        # 1. 核心编译门槛无损降级（全面保留全量软件依赖树）
-        find feeds/ -name "CMakeLists.txt" -exec sed -i 's/cmake_minimum_required(VERSION 3\.31)/cmake_minimum_required(VERSION 3.30)/g' {} \; 2>/dev/null || true
-        
-        # 2. 核心黄金环境锁（修正双引号闭合错误）
-        PYTHON_MAKEFILE="feeds/packages/lang/python/python3/Makefile"
-        if [ -f "$PYTHON_MAKEFILE" ]; then
-          echo "=== 正在对 Python3 交叉编译树应用底层环境锁 ==="
-          sed -i 's/_sysconfigdata__linux_.*\.py/_sysconfigdata__linux_*.py/g' $PYTHON_MAKEFILE 2>/dev/null || true
-          sed -i 's|--with-openssl=\$(STAGING_DIR_HOST)|--with-openssl=/usr|g' $PYTHON_MAKEFILE 2>/dev/null || true
-        fi
+      run: cd openwrt && ./scripts/feeds install -a
 
     - name: Load custom configuration
       run: |
         [ -e files ] && mv files openwrt/files
         [ -e $CONFIG_FILE ] && cp -f $CONFIG_FILE openwrt/.config
-        # 在独立的公用工作区创建一份纯净的配置副本，以避开相对路径偏置
-        cp -f $CONFIG_FILE /workdir/config_absolute_anchor.txt || true
         chmod +x $DIY_P2_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
@@ -113,26 +99,7 @@ jobs:
       id: package
       run: |
         cd openwrt
-        
-        # 3. 终极无损强锁补丁：在拉取前用你的高配全家桶配置强行覆盖默认模板
-        if [ -f "/workdir/config_absolute_anchor.txt" ]; then
-          cp -f /workdir/config_absolute_anchor.txt .config
-        fi
-        
-        # 4. 彻底清洗污染源开发宏，强制圈定 2GB 豪华主分区线
-        sed -i 's/CONFIG_DEVEL=y/# CONFIG_DEVEL is not set/g' .config 2>/dev/null || true
-        sed -i 's/CONFIG_TOOLCHAINOPTS=y/# CONFIG_TOOLCHAINOPTS is not set/g' .config 2>/dev/null || true
-        sed -i 's/CONFIG_TARGET_ROOTFS_PARTSIZE=.*/CONFIG_TARGET_ROOTFS_PARTSIZE=2048/g' .config 2>/dev/null || true
-        
-        # 5. 执行依赖解算
         make defconfig
-        
-        echo "=== 正在验证核心应用是否被装载入内核 ==="
-        grep "CONFIG_PACKAGE_luci-app-alist" .config || echo "警告：AList 丢失"
-        grep "CONFIG_PACKAGE_daed" .config || echo "警告：DAED 丢失"
-        grep "CONFIG_TARGET_ROOTFS_PARTSIZE" .config || true
-        
-        echo "=== Downloading packages ==="
         make download -j8 || make download -j1 || { echo "Download failed, retrying..."; sleep 10; make download -j1; }
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
@@ -141,12 +108,8 @@ jobs:
       id: compile
       run: |
         cd openwrt
-        echo "=== Memory before compile ==="
-        free -h
-        echo "=== CPU info ==="
-        nproc
-        echo "=== Starting compile with $(nproc) threads ==="
-        make -j$(nproc) || { echo "=== Parallel compile failed, retrying with single thread ==="; make -j1; } || { echo "=== Single thread failed, verbose mode ==="; make -j1 V=s; }
+        echo "=== Starting compile ==="
+        make -j$(nproc) || make -j1 || make -j1 V=s
         if [ ! -d "bin/targets" ]; then
           echo "ERROR: Compile failed, bin/targets directory not found"
           exit 1
